@@ -112,12 +112,16 @@ async def handle_photo_or_text(msg: types.Message):
     try:
         content = []
 
-        # Если есть фото
+        # Если есть фото (сжатое) или документ-изображение
+        file_id = None
         if msg.photo:
-            file_id = msg.photo[-1].file_id  # самое большое качество
+            file_id = msg.photo[-1].file_id
+        elif msg.document and msg.document.mime_type and msg.document.mime_type.startswith("image/"):
+            file_id = msg.document.file_id
+
+        if file_id:
             file = await bot.get_file(file_id)
             image_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file.file_path}"
-
             content.append({
                 "type": "image_url",
                 "image_url": {"url": image_url},
@@ -127,7 +131,7 @@ async def handle_photo_or_text(msg: types.Message):
         user_text = (msg.text or msg.caption or "").strip()
         if user_text:
             content.append({"type": "text", "text": user_text})
-        elif msg.photo:
+        elif file_id:
             content.append({"type": "text", "text": "Что на этом изображении? Распознай и ответь на русском."})
 
         if not content:
@@ -152,6 +156,11 @@ async def handle_photo_or_text(msg: types.Message):
 
 @dp.message(lambda msg: (msg.photo or msg.text) and not (msg.text and msg.text.startswith("/")))
 async def handle_media(msg: types.Message):
+    await handle_photo_or_text(msg)
+
+
+@dp.message(lambda msg: msg.document and msg.document.mime_type and msg.document.mime_type.startswith("image/"))
+async def handle_document_image(msg: types.Message):
     await handle_photo_or_text(msg)
 
 
