@@ -99,24 +99,60 @@ async def handle_voice(msg: types.Message):
         await msg.reply(f"❌ Ошибка: {e}")
 
 
-@dp.message()
-async def handle_text(msg: types.Message):
+async def handle_photo_or_text(msg: types.Message):
     if msg.from_user.id not in ALLOWED_IDS:
         await msg.reply("⛔ Нет доступа")
         return
 
-    if not msg.text or msg.text.startswith("/"):
+    if msg.text and msg.text.startswith("/"):
         return
 
     await bot.send_chat_action(msg.chat.id, "typing")
 
     try:
-        result = await ask_gpt(msg.text.strip())
+        content = []
+
+        # Если есть фото
+        if msg.photo:
+            file_id = msg.photo[-1].file_id  # самое большое качество
+            file = await bot.get_file(file_id)
+            image_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file.file_path}"
+
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": image_url},
+            })
+
+        # Если есть текст
+        user_text = (msg.text or msg.caption or "").strip()
+        if user_text:
+            content.append({"type": "text", "text": user_text})
+        elif msg.photo:
+            content.append({"type": "text", "text": "Что на этом изображении? Распознай и ответь на русском."})
+
+        if not content:
+            return
+
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages.append({"role": "user", "content": content})
+
+        response = await ai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=2000,
+        )
+        result = response.choices[0].message.content.strip()
         await msg.reply(result)
-        logger.info("Вопрос: %r", msg.text[:80])
+        logger.info("Запрос с фото: %r", user_text if user_text else "только фото")
     except Exception as e:
         logger.exception("OpenAI API error")
         await msg.reply(f"❌ Ошибка: {e}")
+
+
+@dp.message(lambda msg: (msg.photo or msg.text) and not (msg.text and msg.text.startswith("/")))
+async def handle_media(msg: types.Message):
+    await handle_photo_or_text(msg)
 
 
 async def main():
