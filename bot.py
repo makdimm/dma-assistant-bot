@@ -45,8 +45,7 @@ async def ask_gpt(question: str) -> str:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": question},
         ],
-        temperature=0.7,
-        max_tokens=2000,
+        max_completion_tokens=2000,
     )
     return response.choices[0].message.content.strip()
 
@@ -73,7 +72,7 @@ async def cmd_start(msg: types.Message):
         await msg.reply("⛔ Нет доступа")
         return
     await msg.reply(
-        "👋 Привет! Я Q&A ассистент на GPT-4o.\n"
+        "👋 Привет! Я Q&A ассистент на GPT-5.5.\n"
         "Пиши текст или отправляй голосовые сообщения — я отвечу."
     )
 
@@ -143,8 +142,7 @@ async def handle_photo_or_text(msg: types.Message):
         response = await ai_client.chat.completions.create(
             model="gpt-5.5",
             messages=messages,
-            temperature=0.7,
-            max_tokens=2000,
+            max_completion_tokens=2000,
         )
         result = response.choices[0].message.content.strip()
         await msg.reply(result)
