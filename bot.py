@@ -25,8 +25,12 @@ ALLOWED_IDS = [int(x.strip()) for x in os.environ.get("ALLOWED_IDS", "").split("
 # Сколько пар (user+assistant) хранить в истории
 HISTORY_SIZE = int(os.environ.get("HISTORY_SIZE", "10"))
 
+# OpenAI-совместимый эндпоинт: пусто = api.openai.com, иначе шлюз (DeepSeek / DeepInfra)
+OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL") or None
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.5")
+
 # OpenAI
-ai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+ai_client = AsyncOpenAI(api_key=OPENAI_API_KEY, base_url=OPENAI_BASE_URL)
 
 # Telegram
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -66,7 +70,7 @@ def push_history(chat_id: int, user_msg: dict, assistant_text: str):
 async def ask_gpt(chat_id: int, question: str) -> str:
     messages = build_messages(chat_id, question)
     response = await ai_client.chat.completions.create(
-        model="gpt-5.5",
+        model=OPENAI_MODEL,
         messages=messages,
         max_completion_tokens=2000,
     )
@@ -78,7 +82,7 @@ async def ask_gpt(chat_id: int, question: str) -> str:
 async def ask_gpt_with_image(chat_id: int, content: list) -> str:
     messages = build_messages(chat_id, content)
     response = await ai_client.chat.completions.create(
-        model="gpt-5.5",
+        model=OPENAI_MODEL,
         messages=messages,
         max_completion_tokens=2000,
     )
@@ -111,7 +115,7 @@ async def cmd_start(msg: types.Message):
         await msg.reply("⛔ Нет доступа")
         return
     await msg.reply(
-        "👋 Привет! Я Q&A ассистент на GPT-5.5.\n"
+        f"👋 Привет! Я Q&A ассистент на {OPENAI_MODEL}.\n"
         "Пиши текст или отправляй голосовые сообщения — я отвечу.\n"
         "Я помню последние {} сообщений для контекста.".format(HISTORY_SIZE)
     )
@@ -142,8 +146,11 @@ async def handle_voice(msg: types.Message):
         result = await ask_gpt(msg.chat.id, text)
         await msg.reply(result)
     except Exception as e:
-        logger.exception("Voice processing error")
-        await msg.reply(f"❌ Ошибка: {e}")
+        logger.exception("Transcription error")
+        await msg.reply(
+            "❌ Не получилось распознать голосовое: на текущем эндпоинте нет Whisper. "
+            "Напиши текстом."
+        )
 
 
 async def handle_photo_or_text(msg: types.Message):
@@ -188,7 +195,7 @@ async def handle_photo_or_text(msg: types.Message):
         await msg.reply(result)
         logger.info("Запрос с фото: %r", user_text if user_text else "только фото")
     except Exception as e:
-        logger.exception("OpenAI API error")
+        logger.exception("LLM API error")
         await msg.reply(f"❌ Ошибка: {e}")
 
 

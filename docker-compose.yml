@@ -1,7 +1,8 @@
 services:
   bot:
     build:
-      context: https://github.com/makdimm/dma-assistant-bot.git
+      # локальный контекст: образ собирается из этой папки, правки применяются сразу
+      context: .
     container_name: qa-claude-bot
     restart: unless-stopped
     env_file:
